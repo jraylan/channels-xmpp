@@ -79,8 +79,15 @@ def is_trusted_origin(origin):
 
 
 def get_addr(scope):
-    # TODO: check proxy headers
+
+    try:
+        x_forwarded_for = scope['readers'].get('x-forwarded-for').split(',')[0]
+        return format_addr(x_forwarded_for, "proxied")
+    except:
+        pass
+
     client = scope['client']
+
     return format_addr(client[0], client[1])
 
 
