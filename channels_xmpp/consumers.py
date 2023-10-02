@@ -92,15 +92,9 @@ def get_addr(scope):
 
 
 class WSConsumer(AsyncConsumer):
-    def __init__(self, scope):
-        super(WSConsumer, self).__init__(scope)
-        self.logger = logging.LoggerAdapter(
-            logging.getLogger('xmppserver.transport.websockets'),
-            {'client': get_addr(scope)})
-        self._stream = None
-        self.http_host = get_host(scope)
-        self.http_origin = get_origin(scope)
-        self.loop = asyncio.get_event_loop()
+
+    xep_plugin = [
+    ]
 
     @property
     def stream(self) -> Stream:
@@ -109,9 +103,10 @@ class WSConsumer(AsyncConsumer):
     @stream.setter
     def stream(self, value):
         self._stream = value
-        self.register_plugins()
+        if self._stream:
+            self.register_plugins()
 
-    def register_plugin(self):
+    def register_plugins(self):
         if not self._stream:
             return
         
@@ -141,7 +136,7 @@ class WSConsumer(AsyncConsumer):
         return is_trusted_origin(self.http_origin)
 
     async def get_user(self):
-        return await self.scope['user']
+        return self.scope['user']
 
     async def close_socket(self):
         self.logger.debug('Close')
@@ -158,15 +153,30 @@ class WSConsumer(AsyncConsumer):
         })
 
     async def websocket_connect(self, event):
+        self._stream = None
+
         subprotos = self.scope.get('subprotocols', None)
-        if subprotos and 'xmpp' in subprotos:
+
+        if subprotos and 'xmpp' in subprotos:    
+            print(subprotos)
+            self.logger = logging.LoggerAdapter(
+                logging.getLogger('xmppserver.transport.websockets'),
+                {'client': get_addr(self.scope)})
+            
+            self.http_host = get_host(self.scope)
+            self.http_origin = get_origin(self.scope)
+            self.loop = asyncio.get_event_loop()
+
             self.logger.debug('Connected')
             await self.send({
                 'type': 'websocket.accept',
                 'subprotocol': 'xmpp',
             })
         else:
-            await self.close_socket()
+            await self.send({
+                'type': 'websocket.close'
+            })
+
 
     async def websocket_receive(self, event):
         text = event['text']

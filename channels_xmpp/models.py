@@ -36,7 +36,9 @@ class XMPPUser(models.Model):
 
 class XMPPRoom(models.Model):
     name = models.CharField(
-        _("Nome"))
+        _("Nome"),
+        max_length=100
+    )
     
     members = models.ManyToManyField(
         XMPPUser,
@@ -50,6 +52,7 @@ class XMPPRoomMember(models.Model):
     member = models.ForeignKey(XMPPUser, on_delete=models.CASCADE)
     role = models.CharField(
         _("Papel"),
+        max_length=100,
         choices=(
             (_('Moderador'), "Moderator"),
             (_('Nenhuma'), "None"),

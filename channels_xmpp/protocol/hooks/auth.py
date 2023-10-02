@@ -3,7 +3,7 @@ from django.core.exceptions import ObjectDoesNotExist
 from django.core.signing import TimestampSigner, BadSignature
 from django.db import IntegrityError
 from django.contrib.auth import get_user_model
-from xmppserver.hooks.base import BaseAuthHook
+from .base import BaseAuthHook
 from ..conf import settings
 
 class DefaultAuthHook(BaseAuthHook):
