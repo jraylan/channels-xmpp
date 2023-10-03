@@ -81,7 +81,7 @@ async def handle_ws(consumer, xml):
             # TODO: stream error?
             await consumer.close_socket()
             return
-    consumer.stream.handle_stanza(xml)
+    await consumer.stream.handle_stanza(xml)
 
 async def disconnect_ws(consumer):
     if consumer.stream is not None:

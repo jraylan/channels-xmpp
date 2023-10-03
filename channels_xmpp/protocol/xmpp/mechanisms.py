@@ -16,7 +16,7 @@ class Mechanism(object):
         self.auth = auth
 
     @staticmethod
-    async def available(auth):
+    def available(auth):
         return True
 
     @property
@@ -112,4 +112,4 @@ def get_sasl_by_name(name):
     return mechanisms.get(name, None)
 
 async def get_sasl_available(stream):
-    return [m for m in mechanisms.values() if await m.available(stream)]
+    return [m for m in mechanisms.values() if m.available(stream)]

@@ -1,10 +1,14 @@
+from typing import Optional, cast
 from channels.layers import get_channel_layer
+from asgiref.sync import async_to_sync
 from slixmpp import BaseXMPP, Callback, JID
 from slixmpp.api import APIRegistry
 from slixmpp.plugins import PluginManager
 from slixmpp.stanza import Iq, StreamError
 from slixmpp.xmlstream import (ElementBase, StanzaBase, XMLStream,
                                tostring)
+from slixmpp.xmlstream.xmlstream import SyncFilter
+
 from .matcher import RemoteStanzaPath
 from .features import Features
 from .auth import Auth
@@ -152,7 +156,7 @@ class Stream(BaseXMPP):
         if self._auth_hook:
             await self._auth_hook.unbind(self)
         await self._cleanup_task()
-
+            
     def connection_lost(self, reason=None):
         self.event('disconnected', reason)
         if self.recv_task:
@@ -178,8 +182,63 @@ class Stream(BaseXMPP):
     async def _feature_task(self):
         self.send(await self.get_features())
 
-    def handle_stanza(self, xml):
-        self._spawn_event(xml)
+    async def handle_stanza(self, xml):
+        await self._aspawn_event(xml)
+
+    async def _aspawn_event(self, xml):
+        """
+        Analyze incoming XML stanzas and convert them into stanza
+        objects if applicable and queue stream events to be processed
+        by matching handlers.
+
+        :param xml: The :class:`~slixmpp.xmlstream.stanzabase.ElementBase`
+                    stanza to analyze.
+        """
+        # Apply any preprocessing filters.
+        xml = self.incoming_filter(xml)
+
+        # Convert the raw XML object into a stanza object. If no registered
+        # stanza type applies, a generic StanzaBase stanza will be used.
+        stanza: Optional[StanzaBase] = self._build_stanza(xml)
+        for filter in self.__dict__['_XMLStream__filters']['in']:
+            if stanza is not None:
+                _filter = cast(SyncFilter, filter)
+                stanza = _filter(stanza)
+        if stanza is None:
+            return
+
+        self.logger.debug("RECV: %s", stanza)
+
+        # Match the stanza against registered handlers. Handlers marked
+        # to run "in stream" will be executed immediately; the rest will
+        # be queued.
+        handled = False
+
+        def _do_match(h, stanza):
+            self.logger.debug(h)
+            return h.match(stanza)
+
+        self.logger.debug("FILTERS: %s", [k for k in self.__dict__['_XMLStream__filters']])
+
+        matched_handlers = [
+            h for h in self.__dict__['_XMLStream__filters']
+            if _do_match(h, stanza)]
+        
+        for handler in matched_handlers:
+            handler.prerun(stanza)
+            try:
+                handler.run(stanza)
+            except Exception as e:
+                stanza.exception(e)
+            if handler.check_delete():
+                self.__handlers.remove(handler)
+            handled = True
+
+        # Some stanzas require responses, such as Iq queries. A default
+        # handler will be executed immediately for this case.
+        if not handled:
+            stanza.unhandled()
+
 
     def abort(self):
         pass

@@ -26,7 +26,6 @@ class Migration(migrations.Migration):
             options={
                 'verbose_name': 'session',
                 'verbose_name_plural': 'sessions',
-                'db_tablespace': 'xmppsession',
             },
         ),
         migrations.AlterUniqueTogether(

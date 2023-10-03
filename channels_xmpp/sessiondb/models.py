@@ -26,7 +26,6 @@ class XMPPSession(models.Model):
         verbose_name = pgettext_lazy('xmpp', 'session')
         verbose_name_plural = pgettext_lazy('xmpp', 'sessions')
         unique_together = ('username', 'resource')
-        db_tablespace = 'xmppsession'
 
     def __str__(self):
         return "%s/%s" % (self.username, self.resource)

@@ -33,14 +33,6 @@ class Auth(object):
             Callback('Auth Abort',
                      StanzaPath('abort'),
                      self._handle_abort))
-        if LegacyAuth.available(self):
-            # need to explicitly specify module here since xep_0078
-            # is purposefully unavailable by default
-            stream.register_plugin('xep_0078', module=xep_0078)
-            stream.register_handler(
-                Callback('LegacyAuth',
-                         StanzaPath('iq/auth'),
-                         self._handle_legacy_auth))
 
         stream.register_plugin('feature_bind')
         stream.register_handler(
@@ -127,7 +119,7 @@ class Auth(object):
             if iscoroutine(ret):
                 await ret
         except Exception as e:
-            self.stream.logger.info('Authentication failure')
+            self.stream.logger.info('Authentication failure 1')
             reply = auth_stanza.Failure()
             if isinstance(e, XMPPError):
                 reply['condition'] = e.condition
@@ -150,14 +142,14 @@ class Auth(object):
             self.stream.send_thaw()
             self.auth_task = None
 
-    def _handle_auth(self, auth):
+    async def _handle_auth(self, auth):
         # TODO: handle unexpected auth
         if 'mechanisms' in self.stream.features or self.auth_task:
             # already authenticated, or in progress
             # TODO: send error?
             return
         mech = get_sasl_by_name(auth['mechanism'])
-        if not mech or not mech.available(self):
+        if not mech or not await mech.available(self):
             reply = auth_stanza.Failure()
             reply['condition'] = 'invalid-mechanism'
             self.stream.send(reply)
@@ -272,7 +264,7 @@ class Auth(object):
                 await ret
             await self._bind_attempt()
         except Exception as e:
-            self.stream.logger.info('Authentication failure')
+            self.stream.logger.info('Authentication failure 2')
             reply = iq.reply()
             reply['type'] = 'error'
             if isinstance(e, XMPPError):

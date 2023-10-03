@@ -2,7 +2,7 @@ from channels.db import database_sync_to_async
 from django.core.exceptions import ObjectDoesNotExist
 from django.db import transaction, IntegrityError, OperationalError
 from django.db.models.functions import Now
-from ..hooks import DefaultRosterHook
+from ..protocol.hooks import DefaultRosterHook
 from .models import XMPPContact
 import logging
 

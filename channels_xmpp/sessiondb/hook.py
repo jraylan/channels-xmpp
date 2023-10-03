@@ -1,8 +1,8 @@
 from channels.db import database_sync_to_async
 from django.db import IntegrityError
 from .models import XMPPSession
-from ..hooks import DefaultSessionHook
-from ..utils import get_server_addr
+from ..protocol.hooks import DefaultSessionHook
+from ..protocol.utils import get_server_addr
 import logging
 
 logger = logging.getLogger('xmppserver.rosterdb')

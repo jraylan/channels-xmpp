@@ -150,6 +150,7 @@ class WSConsumer(AsyncConsumer):
         await self.send({
             'type': 'websocket.send',
             'text': text,
+            'subprotocol': 'xmpp',
         })
 
     async def websocket_connect(self, event):
