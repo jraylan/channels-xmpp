@@ -4,6 +4,8 @@ from slixmpp.stanza import StreamFeatures
 from slixmpp.features.feature_starttls import stanza as tls_stanza
 from .stream import Stream
 from ..conf import settings
+import inspect
+
 
 # tls_stanza.STARTTLS is meant as a feature flag
 # and thus doesn't subclass StanzaBase, so we
@@ -67,7 +69,10 @@ class TCPStream(Stream):
             'xml:lang="%s"' % self.default_lang,
             'version="%s"' % self.version)
         self.send_raw(header)
-        self.send_features()
+        if inspect.iscoroutinefunction(self.send_features):
+            await self.send_features()
+        else:
+            self.send_features()
 
     def abort(self):
         self.transport.loseConnection()

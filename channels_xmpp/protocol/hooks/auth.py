@@ -1,3 +1,4 @@
+import logging
 from channels.db import database_sync_to_async
 from django.core.exceptions import ObjectDoesNotExist
 from django.core.signing import TimestampSigner, BadSignature
@@ -56,8 +57,9 @@ class DefaultAuthHook(BaseAuthHook):
     def check_password(self, stream, username, password):
         try:
             user = self.get_webuser_by_username(username)
+            logging.debug("USER: %s", user)
         except ObjectDoesNotExist:
-            pass
+            logging.debug("USER: <None>")
         else:
             if user and user.is_active and \
                user.check_password(password):

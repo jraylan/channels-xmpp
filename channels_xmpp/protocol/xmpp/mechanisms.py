@@ -1,5 +1,7 @@
 from slixmpp.exceptions import XMPPError
 from ..conf import settings
+import inspect
+
 
 mechanisms = {}
 
@@ -112,4 +114,8 @@ def get_sasl_by_name(name):
     return mechanisms.get(name, None)
 
 async def get_sasl_available(stream):
-    return [m for m in mechanisms.values() if m.available(stream)]
+    return [
+        m for m in mechanisms.values()
+        if (inspect.iscoroutinefunction(m.available) and await m.available(stream)) or 
+           (not inspect.iscoroutinefunction(m.available) and m.available(stream))
+    ]

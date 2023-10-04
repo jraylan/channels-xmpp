@@ -1,10 +1,13 @@
-from asyncio import iscoroutine, wrap_future, InvalidStateError
-from concurrent.futures import Future # threadpool-compatible futures
+from asyncio import wrap_future, InvalidStateError
+from concurrent.futures import Future
+import inspect
+import logging
 from slixmpp import Callback, StanzaPath
 from slixmpp.exceptions import XMPPError
 from slixmpp.features.feature_mechanisms import stanza as auth_stanza
 from slixmpp.plugins import xep_0078
 from slixmpp.stanza import StreamFeatures
+
 from .mechanisms import get_sasl_available, get_sasl_by_name, LegacyAuth
 from ..conf import settings
 import uuid
@@ -21,8 +24,10 @@ class Auth(object):
         self.responses = None
         stream.credentials = {} # feature_mechanisms need this
         stream.register_plugin('feature_mechanisms')
+        from .stream import AsyncCallback
+        
         stream.register_handler(
-            Callback('Auth',
+            AsyncCallback('Auth',
                      StanzaPath('auth'),
                      self._handle_auth))
         stream.register_handler(
@@ -65,6 +70,8 @@ class Auth(object):
         return uuid.uuid4().hex
 
     async def check_password(self, username, password):
+
+        logging.info(settings.ALLOW_PLAIN_PASSWORD)
         if not password:
             # client didn't supply a password, maybe they
             # want web session authentication
@@ -115,9 +122,10 @@ class Auth(object):
 
     async def _auth_task(self, auth, process):
         try:
-            ret = process(auth)
-            if iscoroutine(ret):
-                await ret
+            if inspect.iscoroutinefunction(process):
+                await process(auth)
+            else:
+                process(auth)
         except Exception as e:
             self.stream.logger.info('Authentication failure 1')
             reply = auth_stanza.Failure()
@@ -149,7 +157,11 @@ class Auth(object):
             # TODO: send error?
             return
         mech = get_sasl_by_name(auth['mechanism'])
-        if not mech or not await mech.available(self):
+        available = await mech.available(self) \
+            if inspect.iscoroutinefunction(mech.available) \
+            else mech.available(self)
+        
+        if not mech or not available:
             reply = auth_stanza.Failure()
             reply['condition'] = 'invalid-mechanism'
             self.stream.send(reply)

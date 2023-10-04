@@ -1,13 +1,13 @@
+import inspect
 from typing import Optional, cast
 from channels.layers import get_channel_layer
-from asgiref.sync import async_to_sync
-from slixmpp import BaseXMPP, Callback, JID
+from slixmpp import BaseXMPP, Callback as BaseCallback, JID
 from slixmpp.api import APIRegistry
 from slixmpp.plugins import PluginManager
 from slixmpp.stanza import Iq, StreamError
 from slixmpp.xmlstream import (ElementBase, StanzaBase, XMLStream,
                                tostring)
-from slixmpp.xmlstream.xmlstream import SyncFilter
+from slixmpp.xmlstream.xmlstream import AsyncFilter
 
 from .matcher import RemoteStanzaPath
 from .features import Features
@@ -28,6 +28,27 @@ def min_version(a, b):
     v_b = [int(x) for x in b.split('.')]
     v_min = min(v_a, v_b)
     return ".".join([str(x) for x in v_min])
+
+
+class AsyncCallback(BaseCallback):
+    async def run(self, payload: StanzaBase, instream: bool = False) -> None:
+        """Execute the callback function with the matched stanza payload.
+
+        :param payload: The matched
+            :class:`~slixmpp.xmlstream.stanzabase.StanzaBase` object.
+        :param bool instream: Force the handler to execute during stream
+                              processing. This should only be used by
+                              :meth:`prerun()`. Defaults to ``False``.
+        """
+        if not self._instream or instream:
+            if inspect.iscoroutinefunction(self._pointer):
+                await self._pointer(payload)
+            else:
+                self._pointer(payload)
+            if self._once:
+                self._destroy = True
+                del self._pointer
+
 
 class StreamElement(StanzaBase):
     name = 'stream'
@@ -96,7 +117,7 @@ class Stream(BaseXMPP):
         self.messaging = None
 
         self.register_handler(
-            Callback('Remote Iq',
+            AsyncCallback('Remote Iq',
                      RemoteStanzaPath('iq'),
                      self._handle_iq))
 
@@ -176,7 +197,7 @@ class Stream(BaseXMPP):
         else:
             return await self.features.get_features()
 
-    def send_features(self):
+    async def send_features(self):
         self.loop.create_task(self._feature_task())
 
     async def _feature_task(self):
@@ -202,7 +223,7 @@ class Stream(BaseXMPP):
         stanza: Optional[StanzaBase] = self._build_stanza(xml)
         for filter in self.__dict__['_XMLStream__filters']['in']:
             if stanza is not None:
-                _filter = cast(SyncFilter, filter)
+                _filter = await cast(AsyncFilter, filter)
                 stanza = _filter(stanza)
         if stanza is None:
             return
@@ -213,25 +234,22 @@ class Stream(BaseXMPP):
         # to run "in stream" will be executed immediately; the rest will
         # be queued.
         handled = False
-
-        def _do_match(h, stanza):
-            self.logger.debug(h)
-            return h.match(stanza)
-
-        self.logger.debug("FILTERS: %s", [k for k in self.__dict__['_XMLStream__filters']])
-
         matched_handlers = [
-            h for h in self.__dict__['_XMLStream__filters']
-            if _do_match(h, stanza)]
+            h for h in self.__dict__['_XMLStream__handlers']
+            if h.match(stanza)]
         
         for handler in matched_handlers:
             handler.prerun(stanza)
             try:
-                handler.run(stanza)
+                if inspect.iscoroutinefunction(handler.run):
+                    await handler.run(stanza)
+                else:
+                    handler.run(stanza)
+
             except Exception as e:
                 stanza.exception(e)
             if handler.check_delete():
-                self.__handlers.remove(handler)
+                self.self.__dict__['_XMLStream__handlers'].remove(handler)
             handled = True
 
         # Some stanzas require responses, such as Iq queries. A default

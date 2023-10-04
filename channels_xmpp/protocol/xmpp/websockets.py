@@ -1,6 +1,7 @@
 from slixmpp import Callback, StanzaPath
 from slixmpp.xmlstream import StanzaBase, tostring
 from .stream import StreamElement, Stream
+import inspect
 
 NS_XMPP_FRAMING = 'urn:ietf:params:xml:ns:xmpp-framing'
 
@@ -54,7 +55,10 @@ class WSStream(Stream):
         element['id'] = self.stream_id
         element['version'] = self.version
         self.send(element)
-        self.send_features()
+        if inspect.iscoroutinefunction(self.send_features):
+            await self.send_features()
+        else:
+            self.send_features()
 
     def close(self):
         if not self.closing:
